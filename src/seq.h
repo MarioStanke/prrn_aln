@@ -535,8 +535,8 @@ const   char*   attrs[3] = {attr, attr2, 0};
 	long    fpos = 0L;
 // skip comment lines
 	for (;;) {
-	    fpos = ftell(fd);
-	    if (!fgets(str, MAXL, fd)) return (0);      // empty
+	    fpos = get_file_position(fd);
+	    if (!get_line(str, MAXL, fd)) return (0);      // empty
 	    if (*str != _LCOMM && !isBlankLine(str)) break;
 	    if ((strlen(str) + 1) == MAXL) flush_line(fd);
 	}
@@ -631,7 +631,7 @@ static	const	char* readthru = "CDS may be read through !\n";
 	    }
 	    ps = strcpy(str, ps);
 	    int	len = strlen(ps);
-	    if (!fgets(str + len, MAXL - len, fd)) {
+	    if (!get_line(str + len, MAXL - len, fd)) {
 		prompt(readthru);
 		break;
 	    }
@@ -654,7 +654,7 @@ char* Seq::readanno(file_t fd, char* str, SeqDb* db, Mfile& gapmfd)
 	for ( ; ps && ((db->FormID >= FASTA &&
 	    (*str == _COMM || *str == _NHEAD || *str == _CHEAD)) ||
 	    (db->SeqLabel && wordcmp(str, db->SeqLabel)));
-	    ps = fgets(str, MAXL, fd)) {
+	    ps = get_line(str, MAXL, fd)) {
 	    if (db->FormID == GenBank && 
 		*str == 'F' && strmatch(str, "FEATURES")) {
 		    feature = 1;
@@ -681,7 +681,7 @@ char* Seq::readanno(file_t fd, char* str, SeqDb* db, Mfile& gapmfd)
 	}
 	if (exons && ((exons->left > exons[CdsNo - 1].left) ^ (nseg < 0)))
 	    vreverse(exons, CdsNo);
-	if (ps && db->FormID < FASTA) ps = fgets(str, MAXL, fd);
+	if (ps && db->FormID < FASTA) ps = get_line(str, MAXL, fd);
 	return (ps);
 }
 
@@ -692,12 +692,12 @@ CHAR* Seq::get_nat_aln(file_t fd, char* str, RANGE* qcr)
 	msaname = strrealloc(msaname, car(ps));
 
 	CHAR*	ss = seq_;
-	long	fpos = ftell(fd);
+	long	fpos = get_file_position(fd);
 	if (inex.molc == UNKNOWN) {
 //	Infer molecular type
-	    if (!fgets(str, MAXL, fd)) return (ss);
+	    if (!get_line(str, MAXL, fd)) return (ss);
 	    infermolc(fd, str, true);
-	    fseek(fd, fpos, SEEK_SET);
+	    seek_file(fd, fpos, SEEK_SET);
 	}
 
 	CHAR**	wrk = new CHAR*[many];
@@ -709,9 +709,9 @@ CHAR* Seq::get_nat_aln(file_t fd, char* str, RANGE* qcr)
 	int	blkno = 0;
 	for (int i = 0; i < many; ) wrk[i++] = ss++;
 	int	i = 0;
-	for ( ; (ps = fgets(str, MAXL, fd)); fpos = ftell(fd)) {
+	for ( ; (ps = get_line(str, MAXL, fd)); fpos = get_file_position(fd)) {
 	    if (*ps == _NHEAD || *ps == _CHEAD) {
-		fseek(fd, fpos, SEEK_SET);	// undo 1 line
+		seek_file(fd, fpos, SEEK_SET);	// undo 1 line
 		break;
 	    }
 	    if (strmatch(ps, ";B") && (alprm2.spb > 0)) {
@@ -795,7 +795,7 @@ CHAR* Seq::get_msf_aln(file_t fd, char* str, RANGE* pcr)
 {
 	int	num  = 0;
 	if (!sname) sname = new Strlist;
-	while (fgets(str, MAXL, fd)) {
+	while (get_line(str, MAXL, fd)) {
 	    if (!wordcmp(str, "//")) break;
 	    char*	qs = str;
 	    char*	ps = car(qs);
@@ -821,7 +821,7 @@ CHAR* Seq::get_msf_aln(file_t fd, char* str, RANGE* pcr)
 	CHAR*	ss = at(0);
 	int	m = 0;
 	inex.algn = 1;
-	while (fgets(str, MAXL, fd)) {
+	while (get_line(str, MAXL, fd)) {
 	    char*	ps = cdr(str);
 	    if (!*ps) continue;	// blank line
 	    CHAR*	rr = ss + m;
@@ -884,7 +884,7 @@ CHAR* Seq::seq_readin(file_t fd, char* str, int mem, RANGE* pcr, Mfile* pfqmfd)
 			setstrand(1, sp); 
 		} while ((sp = withinline(str, MAXL, fd)));
 	    }
-	    if (!fgets(str, MAXL, fd)) return (0);	// empty seq
+	    if (!get_line(str, MAXL, fd)) return (0);	// empty seq
 	    ps = readanno(fd, str, db, gapmfd);
 	} else
 	    ps = readanno(fd, str, db, gapmfd);
@@ -901,12 +901,12 @@ CHAR* Seq::seq_readin(file_t fd, char* str, int mem, RANGE* pcr, Mfile* pfqmfd)
 * read body of seq
 *************************/
 
-	long	fpos = ftell(fd);
+	long	fpos = get_file_position(fd);
 	if (inex.molc == UNKNOWN) {
 	    char	buf[MAXL];
 	    strcpy(buf, str);
 	    infermolc(fd, buf);
-	    fseek(fd, fpos, SEEK_SET);
+	    seek_file(fd, fpos, SEEK_SET);
 	}
 
 	int	step = isprotein()? 3: 1;
@@ -940,9 +940,9 @@ CHAR* Seq::seq_readin(file_t fd, char* str, int mem, RANGE* pcr, Mfile* pfqmfd)
 	    }
 	}
 
-	for ( ; ps; fpos = ftell(fd), ps = fgets(str, MAXL, fd)) {
+	for ( ; ps; fpos = get_file_position(fd), ps = get_line(str, MAXL, fd)) {
 	    if (db->is_DbEntry(ps)) {
-		fseek(fd, fpos, SEEK_SET);	// undo 1 line
+		seek_file(fd, fpos, SEEK_SET);	// undo 1 line
 		break;
 	    }
 	    if (db->EndLabel && !wordcmp(str, db->EndLabel)) flag = -2;
@@ -1126,7 +1126,7 @@ int Seq::infermolc(file_t fd, char* str, bool msf)
 		} else if (msf && *ps == _LABL) break;
 		else if (*ps == _COMM || *ps == _LCOMM) break;
 	    }
-	} while (fgets(str, MAXL, fd));
+	} while (get_line(str, MAXL, fd));
 eol:
 	FTYPE	ncode = cmp[aton('A')] + cmp[aton('C')] + cmp[aton('G')]
 		+ cmp[aton('T')] + cmp[aton('U')];
@@ -1150,8 +1150,8 @@ CHAR* Seq::get_mfasta(file_t fd, long fpos, char* str, RANGE* pcr, const SeqDb* 
 	int	num = 0;
 	do {
 	    if (dbf->is_DbEntry(str)) ++num;
-	} while (fgets(str, MAXL, fd));
-	fseek(fd, fpos, SEEK_SET);
+        } while (get_line(str, MAXL, fd));
+	seek_file(fd, fpos, SEEK_SET);
 	if (!num) {
 	    prompt("Empty or not MSA !\n");
 	    exit(0);
@@ -1473,7 +1473,7 @@ inline	VTYPE axbscale(const Seq** seqs)
 template <typename file_t>
 inline	char*	withinline(char* str, INT maxl, file_t fd)
 {
-	return ((strlen(str) + 1) == maxl? fgets(str, maxl, fd): 0);
+	return ((strlen(str) + 1) == maxl? get_line(str, maxl, fd): 0);
 }
 
 #endif	// _BSEQ_H_

@@ -348,7 +348,7 @@ protected:
 	    fname = 0;
 	    if (fd) {fclose(fd); fd = 0;}
 #if USE_ZLIB
-	    if (gzfd) {fclose(gzfd); gzfd = 0;}
+	    if (gzfd) {gzclose(gzfd); gzfd = 0;}
 #endif
 	}
 public:
@@ -367,7 +367,7 @@ public:
 	~VarLoader() {
 	    if (fd) fclose(fd);
 #if USE_ZLIB
-	    if (gzfd) fclose(gzfd);
+	    if (gzfd) gzclose(gzfd);
 #endif
 	}
 	bool	active_file() {
@@ -505,7 +505,7 @@ void VarLoader<var_t>::reset()
 {
 	if (fd) {fclose(fd); fd = 0;} var_no = 0;
 #if USE_ZLIB
-	if (gzfd) {fclose(gzfd); gzfd = 0;} var_no = 0;
+	if (gzfd) {gzclose(gzfd); gzfd = 0;} var_no = 0;
 #endif
 	if (svr->memb) {
 	    if (baseno && svr->memb->grp2) {

@@ -873,7 +873,7 @@ static	const	char	efmt[] = "Cant't write to gene record %s: # %ld\n";
 		if (OutPrm.gzipped) {
 		    strcat(str, gz_ext);
 		    if (!(gzfq = gzopen(str, "wb"))) fatal(efmt, str, 0);
-		    if ((fputs(dbs_dt[0]->dbsid, gzfq) == EOF) || (fputc('\0', gzfq) == EOF))
+		    if ((gzputs(gzfq, dbs_dt[0]->dbsid) == EOF) || (gzputc(gzfq, '\0') == EOF))
 		    fatal(efmt, qrext, gr.Nrecord);
 		} else 
 #endif
@@ -918,7 +918,8 @@ static	const	char	efmt[] = "Cant't write to gene record %s: # %ld\n";
 		    if (fe && fwrite(&er, sizeof(ExonRecord), 1, fe) != 1)
 			fatal(efmt, erext, gr.Nrecord);
 #if USE_ZLIB
-		    if (gzfe && fwrite(&er, sizeof(ExonRecord), 1, gzfe) != 1)
+		    if (gzfe && gzwrite(gzfe, &er, sizeof(ExonRecord)) != (int)sizeof(ExonRecord))
+
 			fatal(efmt, erext, gr.Nrecord);
 #endif
 		} else {
@@ -965,13 +966,13 @@ static	const	char	efmt[] = "Cant't write to gene record %s: # %ld\n";
 	    if (fg && fwrite(&gr, sizeof(GeneRecord), 1, fg) != 1)
 		fatal(efmt, grext, gr.Nrecord);
 #if USE_ZLIB
-	    if (gzfg && fwrite(&gr, sizeof(GeneRecord), 1, gzfg) != 1)
+	    if (gzfg && gzwrite(gzfg, &gr, sizeof(GeneRecord)) != (int)sizeof(GeneRecord))
 		fatal(efmt, grext, gr.Nrecord);
 #endif
 	    if (fq && (fputs((*qry->sname)[0], fq) == EOF || fputc('\0', fq) == EOF))
 		fatal(efmt, qrext, gr.Nrecord);
 #if USE_ZLIB
-	    if (gzfq && (fputs((*qry->sname)[0], gzfq) == EOF || fputc('\0', gzfq) == EOF))
+	    if (gzfq && (gzputs(gzfq, (*qry->sname)[0]) == EOF || gzputc(gzfq, '\0') == -1))
 		fatal(efmt, qrext, gr.Nrecord);
 #endif
 	} else {
@@ -990,9 +991,9 @@ void closeGeneRecord()
 	if (fe) {fclose(fe); fe = 0;}
 	if (fq) {fclose(fq); fq = 0;}
 #if USE_ZLIB
-	if (gzfg) {fclose(gzfg); gzfg = 0;}
-	if (gzfe) {fclose(gzfe); gzfe = 0;}
-	if (gzfq) {fclose(gzfq); gzfq = 0;}
+	if (gzfg) {gzclose(gzfg); gzfg = 0;}
+	if (gzfe) {gzclose(gzfe); gzfe = 0;}
+	if (gzfq) {gzclose(gzfq); gzfq = 0;}
 #endif
 }
 

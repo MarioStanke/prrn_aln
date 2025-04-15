@@ -101,9 +101,9 @@ const	bool	isaa;
 #endif
 	char*	dbname;
 	void	putsq(int c) {
-		if (fseq)	fputc(c, fseq);
+		if (fseq)	put_char(c, fseq);
 #if USE_ZLIB
-		else	 fputc(c, gzseq);
+		else	 put_char(c, gzseq);
 #endif
 	}
 public:
@@ -112,7 +112,7 @@ public:
 		fclose(fgrp);
 		if (fseq) fclose(fseq);
 #if USE_ZLIB
-		if (gzseq) fclose(gzseq);
+		if (gzseq) gzclose(gzseq);
 #endif
 		fclose(fidx);
 		fclose(fent);
@@ -135,7 +135,7 @@ template <typename file_t>
 		long	 fpos = 0L;
 		if (fseq)	fpos = ftell(fseq);
 #if USE_ZLIB
-		else	 fpos = ftell(gzseq);
+		else	 fpos = gztell(gzseq);
 #endif
 		fprintf(fgrp, "%8ld %u %s\n", fpos, (INT) recnbr, ps);
 	}

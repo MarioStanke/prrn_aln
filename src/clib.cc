@@ -439,8 +439,8 @@ Strlist::Strlist(gzFile gzfd, int m)
 	while ((c = gzgetc(gzfd)) != EOF) ++totallen;
 	sunitsize = (totallen + defsunit - 1) / defsunit * defsunit;
 	strbuf = new char[sunitsize];
-	fseek(gzfd, 0L, SEEK_SET);
-	if (fread(strbuf, sizeof(char), totallen, gzfd) <= 0)
+	gzseek(gzfd, 0L, SEEK_SET);
+	if (gzread(gzfd, strbuf, totallen) <= 0)
 	    fatal("Strlist file may be corupped !\n");
 	format();
 }
