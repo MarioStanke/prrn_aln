@@ -69,7 +69,7 @@ public:
 	    long	fpos = 0L;
 	    if (fseq)	fpos = ftell(fseq);
 #if USE_ZLIB
-	    else	fpos = ftell(gzseq);
+	    else	fpos = gztell(gzseq);
 #endif
 	    fprintf(fgrp, "%8ld %u %s\n", fpos, (INT) recnbr, ps);
 	}

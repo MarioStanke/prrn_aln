@@ -250,7 +250,7 @@ int MakeDbs::write_recrd(file_t fd, int c)
 	    rec.entptr = ftell(fent);
 #if USE_ZLIB
 	    if (fseq)	rec.seqptr = ftell(fseq);
-	    else	rec.seqptr = ftell(gzseq);
+	    else	rec.seqptr = get_file_position(gzseq);
 #else
 	    rec.seqptr = ftell(fseq);
 #endif
@@ -258,7 +258,7 @@ int MakeDbs::write_recrd(file_t fd, int c)
 	    char*	ps = entrystr;
 	    char*	pe = ps;
 	    char*	pb = ps;
-	    while ((c = fgetc(fd)) != EOF && !isspace(c)) {
+	    while ((c = get_char(fd)) != EOF && !isspace(c)) {
 		*ps++ = c;
 		if (c == '|') {
 		    pb = pe;
@@ -511,24 +511,24 @@ void MakeBlk::writeBlkInfo(file_t fd, const char* block_fn)
 	if (!fd) fatal(writeerrmssg, block_fn);
 	size_t	chrn = cntblk.ChrNo + 1;
 	if (!cntblk.ChrID) ++cntblk.VerNo;
-	if (fwrite(&wcp, sizeof(BlkWcPrm), 1, fd) != 1 ||
-	    fwrite(&cntblk, sizeof(ContBlk), 1, fd) != 1 ||
-	    fwrite(&b2c, sizeof(Block2Chr), 1, fd) != 1 ||
-	    (cntblk.ChrID && fwrite(cntblk.ChrID, sizeof(CHROMO), chrn, fd) != chrn) ||
-	    fwrite(cntblk.Nblk, sizeof(SHORT), wcp.TabSize, fd) != wcp.TabSize)
+	if (put_data(&wcp, sizeof(BlkWcPrm), 1, fd) != 1 ||
+	    put_data(&cntblk, sizeof(ContBlk), 1, fd) != -1 ||
+	    put_data(&b2c, sizeof(Block2Chr), 1, fd) != -1 ||
+	    (cntblk.ChrID && put_data(cntblk.ChrID, sizeof(CHROMO), chrn, fd) != chrn) ||
+	     put_data(cntblk.Nblk, sizeof(SHORT), wcp.TabSize, fd) != wcp.TabSize)
 		fatal(writeerrmssg, block_fn);
 	INT*	blkidx = new INT[wcp.TabSize];
 	for (INT w = 0; w < wcp.TabSize; ++w)
 	    blkidx[w] = cntblk.blkp[w]? cntblk.blkp[w] - cntblk.blkb + 1: 0;
-	if (fwrite(blkidx, sizeof(INT), wcp.TabSize, fd) != wcp.TabSize)
+	if (put_data(blkidx, sizeof(INT), wcp.TabSize, fd) != wcp.TabSize)
 		fatal(writeerrmssg, block_fn);
 	delete[] blkidx;
 	SHORT*	sblkb = (SHORT*) cntblk.blkb;
-	if (fwrite(sblkb, sizeof(SHORT), cntblk.WordSz, fd) != cntblk.WordSz ||
-	    fwrite(cntblk.wscr, sizeof(short), wcp.TabSize, fd) != wcp.TabSize ||
-	    fwrite(iConvTab, sizeof(CHAR), cntblk.ConvTS, fd) != cntblk.ConvTS)
-		fatal(writeerrmssg, block_fn);
-	fclose(fd);
+	if (put_data(sblkb, sizeof(SHORT), cntblk.WordSz, fd) != cntblk.WordSz ||
+	    put_data(cntblk.wscr, sizeof(short), wcp.TabSize, fd) != wcp.TabSize ||
+	    put_data(iConvTab, sizeof(CHAR), cntblk.ConvTS, fd) != cntblk.ConvTS)
+	  fatal(writeerrmssg, block_fn);
+	close_file(fd);
 }
 
 void MakeBlk::WriteBlkInfo()
@@ -928,7 +928,7 @@ void PreScan::scan_genome(file_t fd, SeqLenStat& sls)
 	int	c = 0;
 	INT	posinentry = 0;
 
-	while ((c = fgetc(fd)) != EOF) {
+	while ((c = get_char(fd)) != EOF) {
 	    if (isalpha(c)) {
 		INT	uc = a2r[toupper(c) - 'A'];		// ignore
 		if (uc > Nalpha || (ignoreamb && uc == Nalpha)) continue;
@@ -942,12 +942,12 @@ void PreScan::scan_genome(file_t fd, SeqLenStat& sls)
 			posinentry = 0;
 		    }
 		case ';': case '#':	// comments
-		    while ((c = fgetc(fd)) != EOF && c != '\n');
+		    while ((c = get_char(fd)) != EOF && c != '\n');
 		    break;
 		case '/': 
-		    if ((c = fgetc(fd)) == '/')
-			while ((c = fgetc(fd)) != EOF && c != '>');
-		    ungetc(c, fd);
+		    if ((c = get_char(fd)) == '/')
+			while ((c = get_char(fd)) != EOF && c != '>');
+		    unget_char(c, fd);
 		    break;
 		default: break;
 	    }
@@ -968,7 +968,7 @@ void PreScan::lenStat(int argc, const char** seqdb, SeqLenStat& sls)
 		gzFile	gzfd = gzopen(*seqdb, "rb");
 		if (gzfd) {
 		    scan_genome(gzfd, sls);
-		    fclose(gzfd);
+		    close_file(gzfd);
 		} else	fatal("%s not found!\n", *seqdb);
 #else
 		fatal(gz_unsupport);
@@ -977,7 +977,7 @@ void PreScan::lenStat(int argc, const char** seqdb, SeqLenStat& sls)
 		FILE*	fd = fopen(*seqdb, "r");
 		if (!fd) fatal("%s not found!\n", *seqdb);
 		scan_genome(fd, sls);
-		fclose(fd);
+		close_file(fd);
 	    }
 	}
 }
@@ -1030,7 +1030,7 @@ void MakeBlk::scan_genome(file_t fd, INT* tc)
 	int	i = mlut? -lut->prelude: 0;
 	int	posinblk = 0;
 	int	rest = 0;
-	while ((c = fgetc(fd)) != EOF) {
+	while ((c = get_char(fd)) != EOF) {
 	    if (isalpha(c)) {
 		INT	uc = a2r[toupper(c) - 'A'];		// ignore
 		if (uc > Nalpha || (ignoreamb && uc == Nalpha)) continue;
@@ -1086,12 +1086,12 @@ void MakeBlk::scan_genome(file_t fd, INT* tc)
 			if (c == '\n' || c == EOF) break;
 		    }			// no break
 		case ';': case '#':	// comments
-		    while ((c = fgetc(fd)) != EOF && c != '\n');
+		    while ((c = get_char(fd)) != EOF && c != '\n');
 		    break;
 		case '/': 
-		    if ((c = fgetc(fd)) == '/')
-			while ((c = fgetc(fd)) != EOF && c != '>');
-		    ungetc(c, fd);
+		    if ((c = get_char(fd)) == '/')
+			while ((c = get_char(fd)) != EOF && c != '>');
+		    unget_char(c, fd);
 		    break;
 		default: break;
 	    }
@@ -1125,7 +1125,7 @@ void MakeBlk::scan_genome(file_t fd, INT* tc)
 	    mkdbs->stamp21();
 	    mkdbs->mkidx();
 	}
-	fclose(fd);
+	close_file(fd);
 }
 
 void MakeBlk::idxblk(int argc, const char** argv)
@@ -1482,7 +1482,7 @@ void MakeBlk::m_scan_genome(file_t fd, bool first)
 	BlkQueue*&	next_q = bq[0];
 	bool	mdbs = first && mkdbs;
 
-	while ((c = fgetc(fd)) != EOF) {
+	while ((c = get_char(fd)) != EOF) {
 	    if (isalpha(c)) {
 		INT	uc = a2r[toupper(c) - 'A'];
 		if (uc > Nalpha || (ignoreamb && uc == Nalpha)) continue;
@@ -1523,12 +1523,12 @@ void MakeBlk::m_scan_genome(file_t fd, bool first)
 			if (c == '\n' || c == EOF) break;
 		    }
 		case ';': case '#':	// comments
-		    while ((c = fgetc(fd)) != EOF && c != '\n');
+		    while ((c = get_char(fd)) != EOF && c != '\n');
 		    break;
 		case '/':
-		    if ((c = fgetc(fd)) == '/')
-			while ((c = fgetc(fd)) != EOF && c != '>');
-		    ungetc(c, fd);
+		    if ((c = get_char(fd)) == '/')
+			while ((c = get_char(fd)) != EOF && c != '>');
+		    unget_char(c, fd);
 		    break;
 		default: break;
 	    }
@@ -1552,7 +1552,7 @@ void MakeBlk::m_scan_genome(file_t fd, bool first)
 	    mkdbs->stamp21();
 	    mkdbs->mkidx();
 	}
-	fclose(fd);
+	close_file(fd);
 }
 
 void MakeBlk::m_idxblk(int argc, const char** argv)
@@ -1659,14 +1659,14 @@ static	int	gcmpf(const GeneRng* a, const GeneRng* b);
 template <typename file_t>
 int SrchBlk::read_blk_dt(file_t fd)
 {
-	if (fread(pbwc->Nblk, sizeof(SHORT), wcp.TabSize, fd) != wcp.TabSize)
+	if (get_data(pbwc->Nblk, sizeof(SHORT), wcp.TabSize, fd) != wcp.TabSize)
 	    return (ERROR);
 	SHORT** sblkp = (SHORT**) pbwc->blkp;
 	SHORT*  sblkb = pbwc->BytBlk == 3?
 	    new SHORT[pbwc->WordSz]: (SHORT*) pbwc->blkb;
 	if (pbwc->VerNo >= 25) {
 	    INT*	blkidx = new INT[wcp.TabSize];
-	    if (fread(blkidx, sizeof(INT), wcp.TabSize, fd) != wcp.TabSize) {
+	    if (get_data(blkidx, sizeof(INT), wcp.TabSize, fd) != wcp.TabSize) {
 		delete[] blkidx;
 		return (ERROR);
 	    }
@@ -1675,7 +1675,7 @@ int SrchBlk::read_blk_dt(file_t fd)
 		pbwc->blkp[w] = blkidx[w]? pbwc->blkb + blkidx[w] - 1: 0;
 	    delete[] blkidx;
 	} else {
-	    if (fread(sblkp, sizeof(SHORT*), wcp.TabSize, fd) != wcp.TabSize)
+	    if (get_data(sblkp, sizeof(SHORT*), wcp.TabSize, fd) != wcp.TabSize)
 		return (ERROR);
 	    long	offset = LONG_MAX;
 	    for (INT w = 0; w < wcp.TabSize; ++w) {
@@ -1697,17 +1697,17 @@ int SrchBlk::read_blk_dt(file_t fd)
 		}
 	    }
 	}
-	if (fread(sblkb, sizeof(SHORT), pbwc->WordSz, fd) != pbwc->WordSz ||
-	    fread(pbwc->wscr, sizeof(short), wcp.TabSize, fd) != wcp.TabSize)
+	if (get_data(sblkb, sizeof(SHORT), pbwc->WordSz, fd) != pbwc->WordSz ||
+	    get_data(pbwc->wscr, sizeof(short), wcp.TabSize, fd) != wcp.TabSize)
  		return (ERROR);
 	if (pbwc->VerNo <= 25) {
 	    INT*	cvt = new INT[pbwc->ConvTS];
-	    if (fread(cvt, sizeof(INT), pbwc->ConvTS, fd) != pbwc->ConvTS) 
+	    if (get_data(cvt, sizeof(INT), pbwc->ConvTS, fd) != pbwc->ConvTS) 
 		return (ERROR);
 	    for (INT i = 0; i < pbwc->ConvTS; ++i)
 		ConvTab[i] = (CHAR) cvt[i];
 	    delete[] cvt;
-	} else if (fread(ConvTab, sizeof(CHAR), pbwc->ConvTS, fd) != pbwc->ConvTS)
+	} else if (get_data(ConvTab, sizeof(CHAR), pbwc->ConvTS, fd) != pbwc->ConvTS)
 		return (ERROR);
 	if (pbwc->BytBlk == 4) return (OK);
 	if (pbwc->BytBlk == 2) {
@@ -1750,11 +1750,11 @@ int SrchBlk::read_blk_dt(file_t fd)
 template <typename file_t>
 static void read_pwc(ContBlk* pwc, file_t fd, const char* fn)
 {
-	size_t	fpos = ftell(fd);
-	if (fread(pwc, sizeof(ContBlk), 1, fd) != 1 || pwc->VerNo < 24) {
-	    fseek(fd, fpos, SEEK_SET);
+	size_t	fpos = get_file_position(fd);
+	if (get_data(pwc, sizeof(ContBlk), 1, fd) != 1 || pwc->VerNo < 24) {
+	    seek_file(fd, fpos, SEEK_SET);
 	    ContBlk22	tmp;
-	    if (fread(&tmp, sizeof(ContBlk22), 1, fd) == 1) {
+	    if (get_data(&tmp, sizeof(ContBlk22), 1, fd) == 1) {
 		if (tmp.VerNo < 21) {
 		    wcp.Nbitpat = 1;
 		    wcp.Bitpat2 = 0;
@@ -1779,12 +1779,12 @@ void SrchBlk::ReadBlkInfo(file_t fd, const char* fn)
 	INT	GivenMaxGene = wcp.MaxGene;
 	pbwc = new ContBlk;
 	pb2c = new Block2Chr;
-	if (fread(&wcp, sizeof(BlkWcPrm), 1, fd) != 1) fatal(emssg, fn);
+	if (get_data(&wcp, sizeof(BlkWcPrm), 1, fd) != 1) fatal(emssg, fn);
 	read_pwc(pbwc, fd, fn);
 	if (pbwc->VerNo < 20) 
 	    fatal("%s: Version %d no longer supported !\n", fn, pbwc->VerNo);
 	if (GivenMaxGene) wcp.MaxGene = GivenMaxGene;
-	if (fread(pb2c, sizeof(Block2Chr), 1, fd) != 1)
+	if (get_data(pb2c, sizeof(Block2Chr), 1, fd) != 1)
 	    fatal(emssg, fn);
 	if (wcp.Ktuple == wcp.BitPat) wcp.BitPat = bitmask(wcp.BitPat);
 	size_t	i = pbwc->ChrNo + 1;
@@ -1796,7 +1796,7 @@ void SrchBlk::ReadBlkInfo(file_t fd, const char* fn)
 	ConvTab = new CHAR[pbwc->ConvTS];
 	if (pbwc->VerNo < 22) {	// for back compatibility
 	    CHROMO21*	chr21 = new CHROMO21[i];
-	    if (fread(chr21, sizeof(CHROMO21), i, fd) != i)
+	    if (get_data(chr21, sizeof(CHROMO21), i, fd) != i)
 		fatal(emssg, fn);
 	    for (INT j = 0; j < i; ++j) {
 		pbwc->ChrID[j].spos = chr21[j].spos;
@@ -1805,33 +1805,33 @@ void SrchBlk::ReadBlkInfo(file_t fd, const char* fn)
 	    delete[] chr21;
 	} else if (pbwc->VerNo < BsVersion) {
 	    CHROMO25*	chr25 = new CHROMO25[i];
-	    if (fread(chr25, sizeof(CHROMO25), i, fd) != i)
+	    if (get_data(chr25, sizeof(CHROMO25), i, fd) != i)
 		fatal(emssg, fn);
 	    for (INT j = 0; j < i; ++j) {
 		pbwc->ChrID[j].spos = chr25[j].spos;
 		pbwc->ChrID[j].segn = chr25[j].segn;
 	    }
 	    delete[] chr25;
-	} else if (pbwc->ChrID && (fread(pbwc->ChrID, sizeof(CHROMO), i, fd) != i))
+	} else if (pbwc->ChrID && (get_data(pbwc->ChrID, sizeof(CHROMO), i, fd) != i))
 		fatal(emssg, fn);
 	if (read_blk_dt(fd) == ERROR) fatal(emssg, fn);
 	pbwc->VerNo = BsVersion;
-	fclose(fd);
+	close_file(fd);
 }
 
 template <typename file_t>
 static void readBlkInfo(file_t fd, const char* fn, ContBlk* pwc, Block2Chr* pbc)
 {
-	if (fread(&wcp, sizeof(BlkWcPrm), 1, fd) != 1) fatal(emssg, fn);
+	if (get_data(&wcp, sizeof(BlkWcPrm), 1, fd) != 1) fatal(emssg, fn);
 	read_pwc(pwc, fd, fn);
-	if (pwc->VerNo >= 14 && fread(pbc, sizeof(Block2Chr), 1, fd) != 1)
+	if (pwc->VerNo >= 14 && get_data(pbc, sizeof(Block2Chr), 1, fd) != 1)
 	    fatal(emssg, fn);
 	if (pwc->VerNo < 14) --pwc->ChrNo;
 	size_t	chrn = pwc->ChrNo + 1;
 	pwc->ChrID = (pwc->VerNo <= BsVersion)? new CHROMO[chrn]: 0;
-	if (pwc->ChrID && (fread(pwc->ChrID, sizeof(CHROMO), chrn, fd) != chrn))
+	if (pwc->ChrID && (get_data(pwc->ChrID, sizeof(CHROMO), chrn, fd) != chrn))
 	    fatal(emssg, fn);
-	fclose(fd);
+	close_file(fd);
 }
 
 void ReportBlkInfo(const char* fn)
@@ -2244,7 +2244,7 @@ void Testran::out(int avrscr)
 	    fprintf(fd, "%5d\t%5d\t%5d\t%7d\t%7.1f\t%7.1f\t%7d\n", i+1, trcnt[i], trmax[i],
 		trmin[i], travr[i], sqrt(trvar[i] / (trcnt[i] - 1)), trwrd[i]);
 	}
-	fclose(fd);
+	close_file(fd);
 }
 
 void Testran::add(const Testran* tr)

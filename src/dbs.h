@@ -49,11 +49,11 @@ static	const	char	LPZ_EXT[] = ".lup.gz";
 #endif
 
 #ifndef	DBS_DIR
-#define	DBS_DIR		"/home/gotoh/pub/prrn_aln/src/../seqdb"
+#define	DBS_DIR		"/home/mario/tools/prrn_aln/src/../seqdb"
 #endif
 
 #ifndef	DBS_SDIR
-#define	DBS_SDIR	"/home/gotoh/pub/prrn_aln/src/../seqdb"
+#define	DBS_SDIR	"/home/mario/tools/prrn_aln/src/../seqdb"
 #endif
 
 #ifndef ALN_DBS
@@ -195,12 +195,15 @@ extern	bool	space_digit(const char* ps);
 extern	const	char*	finddbfpath(const char* fn, const char* ext = 0);
 extern	SeqDb*	whichdb(const char* ps);
 
+
+
+
 template <typename file_t>
 char* dbs_header(char* str, file_t fin)
 {
 	char*	ps = str;
 	while (*ps == _LCOMM || space_digit(ps))
-	    if (!fin || !(ps = fgets(str, MAXL, fin)))
+	    if (!fin || !(ps = get_line(str, MAXL, fin)))
 		return (0);
 	return (ps);
 }

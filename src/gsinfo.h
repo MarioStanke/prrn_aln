@@ -85,7 +85,7 @@ SigII::SigII(file_t fd, char* str, FTYPE* wt)
 	pfq = new PFQ[pfqnum + 1];
 	PFQ*    wfq = pfq;
 	int     i = 0;
-	while (fgets(str, MAXL, fd)) {
+	while (get_line(str, MAXL, fd)) {
 	    if (wordcmp(str, ";b")) break;
 	    for (char* ps = cdr(str); ps && *ps; ps = cdr(ps)) {
 		wfq->pos = atoi(ps);
@@ -110,7 +110,7 @@ readlst:
 	int     n = 0;
 #endif
 	wfq = pfq;
-	while (fgets(str, MAXL, fd)) {
+	while (get_line(str, MAXL, fd)) {
 	    if (wordcmp(str, ";m")) break;
 	    for (char* ps = cdr(str); ps && *ps; ps = cdr(ps)) {
 		int     m = atoi(ps) - 1;

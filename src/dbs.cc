@@ -626,7 +626,7 @@ static 	const	char	openmsg[] =
 		    if (!dbsseq) fatal(no_space);
 		    if (gzread(gzfd, dbsseq, rss) <= 0)
 			fatal("fail to read %s!\n", str);
-		    fclose(gzfd);
+		    gzclose(gzfd);
 #else
 		    continue;
 #endif

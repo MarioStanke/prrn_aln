@@ -184,8 +184,8 @@ void SeqServer::reset()
 	if (fd[0]) {fclose(fd[0]); fd[0] = 0;}
 	if (fd[1]) {fclose(fd[1]); fd[1] = 0;}
 #if USE_ZLIB
-	if (gzfd[0]) {fclose(gzfd[0]); gzfd[0] = 0;}
-	if (gzfd[1]) {fclose(gzfd[1]); gzfd[1] = 0;}
+	if (gzfd[0]) {gzclose(gzfd[0]); gzfd[0] = 0;}
+	if (gzfd[1]) {gzclose(gzfd[1]); gzfd[1] = 0;}
 #endif
 	if (fc) rewind(fc);
 	nfrom = counter = 0;
@@ -324,7 +324,7 @@ InSt SeqServer::nextseq(Seq* sd, int which)
 	    if (sw && counter > nto) return IS_END;
 	    else	continue;
 	   }
-	   fclose(gzfd[which]);
+	   gzclose(gzfd[which]);
 	   gzfd[which] = 0;
 	  }
 #endif
@@ -548,7 +548,7 @@ Seq::Seq(const char* fname)
 	fd = openseq(fname, &gzfd);
 	if (gzfd) {
 	    if (!fgetseq(gzfd, cdr(fname))) fatal("%s is empty !\n", fname);
-	    fclose(gzfd);
+	    gzclose(gzfd);
 	    return;
 	}
 #else
@@ -1309,9 +1309,9 @@ int infermolc(const char* fname)
 #if USE_ZLIB
 	    gzFile	gzfd = gzopen(fname, "r");
 	    if (!gzfd) fatal("%s not found !\n", fname);
-	    if (!fgets(str, MAXL, gzfd)) fatal("%s is empty !\n", fname);
+	    if (!get_line(str, MAXL, gzfd)) fatal("%s is empty !\n", fname);
 	    sd.infermolc(gzfd, str);
-	    fclose(gzfd);
+	    gzclose(gzfd);
 #else
 	    fatal(gz_unsupport, fname);
 #endif
@@ -1546,10 +1546,10 @@ void Seq::estimate_len(FILE* fd, int nos)
 #if USE_ZLIB
 void Seq::estimate_len(gzFile gzfd, int nos)
 {
-	long	fpos = ftell(gzfd);
+	long	fpos = get_file_position(gzfd);
 	char	str[MAXL];
 	int	many = 1;
-	while (fgets(str, MAXL, gzfd)) {
+	while (get_line(str, MAXL, gzfd)) {
 	    if (nos == 1 &&
 		(*str == _NHEAD || *str == _CHEAD || *str == _EOS)) {
 		    flush_line(gzfd);
@@ -1568,7 +1568,7 @@ void Seq::estimate_len(gzFile gzfd, int nos)
 	}
 	area_ = len;
 	len /= many;
-	fseek(gzfd, fpos, SEEK_SET);
+	seek_file(gzfd, fpos, SEEK_SET);
 }
 #endif
 
@@ -1620,7 +1620,7 @@ Seq* Seq::getseq(const char* str, DbsDt* dbf)
 #if USE_ZLIB
 	if (gzfd) {
 	    Seq*	sd = fgetseq(gzfd, cdr(str));
-	    fclose(gzfd);
+	    gzclose(gzfd);
 	    return (sd);
 	}
 #endif
