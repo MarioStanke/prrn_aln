@@ -32,6 +32,7 @@
 #include <stdarg.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <limits.h> // For UINT_MAX
 
 /*	Default Paths/Names of FIles	*/
 
@@ -243,13 +244,114 @@ inline bool is_gz(const char* fn)
 	return (dot && !strcmp(dot + 1, "gz"));
 }
 
+// Helper functions for getting file position
+inline long get_file_position(FILE* fd) {
+    return ftell(fd);
+}
+
+inline z_off_t get_file_position(gzFile fd) {
+    // Note: zlib uses z_off_t, which might be 64-bit, while ftell returns long.
+    // This should be okay for assignment to fpos if fpos is large enough (like long or off_t).
+    return gztell(fd);
+}
+
+// Helper functions for getting a line
+inline char* get_line(char* str, int size, FILE* fd) {
+    return fgets(str, size, fd);
+}
+
+inline char* get_line(char* str, int size, gzFile fd) {
+    // Use zlib's function, noting the different argument order
+    return gzgets(fd, str, size);
+}
+
+inline void seek_file(FILE* fd, long offset, int whence) {
+    fseek(fd, offset, whence);
+}
+
+inline void seek_file(gzFile fd, z_off_t offset, int whence) {
+    // Use zlib's function to seek
+    gzseek(fd, offset, whence);
+}
+
+// Helper for fwrite/gzwrite (mimics fwrite return: items written)
+inline size_t put_data(const void* ptr, size_t size, size_t nmemb, FILE* fd) {
+    return fwrite(ptr, size, nmemb, fd);
+}
+
+inline size_t put_data(const void* ptr, size_t size, size_t nmemb, gzFile fd) {
+    size_t total_bytes_to_write = size * nmemb;
+    if (total_bytes_to_write == 0) return 0; // Nothing to write
+    // Ensure length fits in unsigned int for gzwrite
+    if (total_bytes_to_write > UINT_MAX) { /* Handle error: request too large */ return 0; }
+    int bytes_written = gzwrite(fd, ptr, (unsigned int)total_bytes_to_write);
+    if (bytes_written <= 0) return 0; // Error (-1) or 0 bytes written counts as 0 items
+    // Return number of full items written (handle size=0 case)
+    return (size > 0) ? (size_t)(bytes_written / size) : ( (bytes_written > 0) ? 1 : 0 );
+}
+
+// Helper for fread/gzread (mimics fread return: items read)
+inline size_t get_data(void* ptr, size_t size, size_t nmemb, FILE* fd) {
+    return fread(ptr, size, nmemb, fd);
+}
+
+inline size_t get_data(void* ptr, size_t size, size_t nmemb, gzFile fd) {
+    size_t total_bytes_to_read = size * nmemb;
+    if (total_bytes_to_read == 0) return 0; // Nothing to read
+     // Ensure length fits in unsigned int for gzread
+    if (total_bytes_to_read > UINT_MAX) { /* Handle error: request too large */ return 0; }
+    int bytes_read = gzread(fd, ptr, (unsigned int)total_bytes_to_read);
+     if (bytes_read <= 0) return 0; // Error (-1) or EOF (0) counts as 0 items
+     // Return number of full items read (handle size=0 case)
+    return (size > 0) ? (size_t)(bytes_read / size) : ( (bytes_read > 0) ? 1 : 0 );
+}
+
+// Helper function for getting a character
+inline int get_char(FILE* fd) {
+    return fgetc(fd);
+}
+
+inline int get_char(gzFile fd) {
+    // Use zlib's function to get a character
+    return gzgetc(fd);
+}
+
+// Helper for ungetc/gzungetc
+inline int unget_char(int c, FILE* fd) {
+    return ungetc(c, fd);
+}
+
+inline int unget_char(int c, gzFile fd) {
+    // Note: zlib's gzungetc has different arg order
+    return gzungetc(c, fd);
+}
+
+// Optional but recommended for consistency: Helper for fclose/gzclose
+inline int close_file(FILE* fd) {
+  return fclose(fd);
+}
+inline int close_file(gzFile fd) {
+  return gzclose(fd);
+}
+
+// Helper function for putting a character
+inline int put_char(int c, FILE* fd) {
+    // Standard C version
+    return fputc(c, fd);
+}
+
+inline int put_char(int c, gzFile fd) {
+    // zlib version - NOTE different argument order!
+    return gzputc(fd, c);
+}
+
 // read through until new line
 
 template <typename file_t>
 int	flush_line(file_t fd)
 {
 	int	c;
-	while ((c = fgetc(fd)) != EOF && c != '\n') ;
+	while ((c = get_char(fd)) != EOF && c != '\n') ;
 	return (c);
 }
 

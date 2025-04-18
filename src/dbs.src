@@ -200,7 +200,7 @@ char* dbs_header(char* str, file_t fin)
 {
 	char*	ps = str;
 	while (*ps == _LCOMM || space_digit(ps))
-	    if (!fin || !(ps = fgets(str, MAXL, fin)))
+	    if (!fin || !(ps = get_line(str, MAXL, fin)))
 		return (0);
 	return (ps);
 }
