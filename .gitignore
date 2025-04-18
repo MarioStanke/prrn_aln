@@ -2,6 +2,5 @@
 *.a
 *.swp
 *~
-Makefile
 dbs.h
 iolib.h
